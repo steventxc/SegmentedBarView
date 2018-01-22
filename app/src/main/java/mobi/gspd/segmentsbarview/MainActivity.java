@@ -176,7 +176,7 @@ public class MainActivity extends AppCompatActivity {
         segments.add(segment2);
         Segment segment3 = new Segment(50f, 100f, "High", Color.parseColor("#EF3D2F"));
         segments.add(segment3);
-        barView.setValue(0f);
+        barView.setValue(1f);
         barView.setUnit("μmol/l");
         barView.setSegments(segments);
         barView.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
@@ -210,7 +210,7 @@ public class MainActivity extends AppCompatActivity {
         segments.add(segment2);
         Segment segment3 = new Segment(50f, 100f, "High", Color.parseColor("#EF3D2F"));
         segments.add(segment3);
-        barView.setValue(0f);
+        barView.setValue(1f);
         barView.setUnit("μ/l");
         barView.setSegments(segments);
         barView.setSideStyle(SegmentedBarViewSideStyle.NORMAL);
@@ -228,7 +228,7 @@ public class MainActivity extends AppCompatActivity {
         segments.add(segment2);
         Segment segment3 = new Segment(50f, 100f, "High", Color.parseColor("#EF3D2F"));
         segments.add(segment3);
-        barView.setValue(100f);
+        barView.setValue(98f);
         barView.setUnit("μ/l");
         barView.setSegments(segments);
         barView.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));

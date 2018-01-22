@@ -22,6 +22,8 @@ import android.view.View;
 import java.text.DecimalFormat;
 import java.util.List;
 
+import static android.graphics.Canvas.ALL_SAVE_FLAG;
+
 @SuppressWarnings("unused")
 public class SegmentedBarView extends View {
 
@@ -79,6 +81,9 @@ public class SegmentedBarView extends View {
     private Point point3;
     private Rect segmentRect;
 
+    private RectF valueRect;
+    private Paint valuePaint;
+
     public SegmentedBarView(Context context) {
         super(context);
         init(context, null);
@@ -88,6 +93,10 @@ public class SegmentedBarView extends View {
         super(context, attrs);
         init(context, attrs);
 
+    }
+
+    public static Builder builder(Context context) {
+        return new SegmentedBarView(context).new Builder();
     }
 
     private void init(Context context, AttributeSet attrs) {
@@ -178,6 +187,11 @@ public class SegmentedBarView extends View {
         point1 = new Point();
         point2 = new Point();
         point3 = new Point();
+
+
+        valueRect = new RectF();
+        valuePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        valuePaint.setStyle(Paint.Style.FILL);
     }
 
     @Override
@@ -269,24 +283,47 @@ public class SegmentedBarView extends View {
         return getHeight() - getPaddingTop() - getPaddingBottom();
     }
 
+    //
     private void drawSegment(Canvas canvas, Segment segment, int segmentIndex, int segmentsSize) {
         boolean isLeftSegment = segmentIndex == 0;
         boolean isRightSegment = segmentIndex == segmentsSize - 1;
         boolean isLeftAndRight = isLeftSegment && isRightSegment;
 
+        // 单个segment宽度，一个segment带一个gap，出去最后一个segment的gap(最右边不需要gap)
         int singleSegmentWidth = (getContentWidth() + gapWidth) / segmentsSize - gapWidth;
+        // segment左边位置
         int segmentLeft = (singleSegmentWidth + gapWidth) * segmentIndex;
+        // segment右边位置
         int segmentRight = segmentLeft + singleSegmentWidth;
 
+        // 左右都需加上左侧的padding，上下都需要加上册的padding，否则画的位置有偏差。
+        //
         // Segment bounds
-        rectBounds.set(segmentLeft + getPaddingLeft(), valueSignSpaceHeight() + getPaddingTop(), segmentRight + getPaddingLeft(), barHeight + valueSignSpaceHeight() + getPaddingTop());
+        rectBounds.set(segmentLeft + getPaddingLeft(), valueSignSpaceHeight() + getPaddingTop(),
+                segmentRight + getPaddingLeft(), barHeight + valueSignSpaceHeight() + getPaddingTop());
+
+        ///////////
+        valueRect.set(rectBounds);
+        valuePaint.setColor(Color.parseColor("#FF055555"));
+        ///////////
 
         // Calculating value sign position
         if (valueSegment != null && valueSegment == segmentIndex) {
+            // segment centerX
             valueSignCenter = segmentLeft + getPaddingLeft() + (singleSegmentWidth / 2);
-        } else if (value != null && (value >= segment.getMinValue() && value < segment.getMaxValue() || (isRightSegment && segment.getMaxValue() == value))) {
+        } else if (value != null &&
+                (value >= segment.getMinValue() && value < segment.getMaxValue() // 在最大最小值之间
+                        || (isRightSegment && segment.getMaxValue() == value)) // 最右边的segment,并且当前值和最大值相同
+                ) {
+            // 按比例的相对位置
             float valueSignCenterPercent = (value - segment.getMinValue()) / (segment.getMaxValue() - segment.getMinValue());
             valueSignCenter = (int) (segmentLeft + getPaddingLeft() + valueSignCenterPercent * singleSegmentWidth);
+
+            /////////
+            valueRect.right = valueSignCenter;
+            /////////
+        } else if (value != null && value < segment.getMinValue()) {
+            valueRect.setEmpty();
         }
 
         fillPaint.setColor(segment.getColor());
@@ -296,57 +333,78 @@ public class SegmentedBarView extends View {
         // Drawing segment (with specific bounds if left or right)
         if (isLeftSegment || isRightSegment) {
             barRoundingRadius = rectBounds.height() / 2;
+            // 如果圆角的半径大于segment高度的一般，不合法，直接改成默认矩形的形状
             if (barRoundingRadius > singleSegmentWidth / 2) {
                 sideStyle = SegmentedBarViewSideStyle.NORMAL;
             }
 
             switch (sideStyle) {
                 case SegmentedBarViewSideStyle.ROUNDED:
+                    // 绘制圆角矩形
                     roundRectangleBounds.set(rectBounds.left, rectBounds.top, rectBounds.right, rectBounds.bottom);
                     canvas.drawRoundRect(roundRectangleBounds, barRoundingRadius, barRoundingRadius, fillPaint);
-                    if (!isLeftAndRight) {
+
+                    if (!isLeftAndRight) { // 不是单一的segment
                         if (isLeftSegment) {
-                            rectBounds.set(segmentLeft + barRoundingRadius + getPaddingLeft(), valueSignSpaceHeight() + getPaddingTop(), segmentRight + getPaddingLeft(), barHeight + valueSignSpaceHeight() + getPaddingTop());
+                            // 绘制最左边的segment，避开左侧圆角区域，再绘制一个矩形，同时覆盖右侧的圆角区域，合成一个左圆右方的形状。
+                            rectBounds.set(segmentLeft + barRoundingRadius + getPaddingLeft(), valueSignSpaceHeight() + getPaddingTop(),
+                                    segmentRight + getPaddingLeft(), barHeight + valueSignSpaceHeight() + getPaddingTop());
                             canvas.drawRect(
                                     rectBounds,
                                     fillPaint
                             );
                         } else {
-                            rectBounds.set(segmentLeft + getPaddingLeft(), valueSignSpaceHeight() + getPaddingTop(), segmentRight - barRoundingRadius + getPaddingLeft(), barHeight + valueSignSpaceHeight() + getPaddingTop());
+                            // 不是最左边的segment，避开右侧的圆角区域，绘制一个矩形，形成一个左方右圆的形状。
+                            rectBounds.set(segmentLeft + getPaddingLeft(), valueSignSpaceHeight() + getPaddingTop(),
+                                    segmentRight - barRoundingRadius + getPaddingLeft(), barHeight + valueSignSpaceHeight() + getPaddingTop());
                             canvas.drawRect(
                                     rectBounds,
                                     fillPaint
                             );
                         }
+
                     }
+
+                    // ---------------------------------------------
+                    if (!valueRect.isEmpty()) {
+                        int sc_rounded = canvas.saveLayer(valueRect, valuePaint, ALL_SAVE_FLAG);
+
+                        canvas.drawRoundRect(roundRectangleBounds, barRoundingRadius, barRoundingRadius, valuePaint);
+
+                        if (!isLeftAndRight) {
+                            // 如果有多个segment，那么需要覆盖一个或者同事覆盖两个半圆区域
+                            canvas.drawRect(rectBounds, valuePaint);
+                        }
+
+                        canvas.restoreToCount(sc_rounded);
+                    }
+                    // ---------------------------------------------
+
                     break;
                 case SegmentedBarViewSideStyle.ANGLE:
                     if (isLeftAndRight) {
-                        rectBounds.set(segmentLeft + barRoundingRadius + getPaddingLeft(), valueSignSpaceHeight() + getPaddingTop(), segmentRight - barRoundingRadius + getPaddingLeft(), barHeight + valueSignSpaceHeight() + getPaddingTop());
-                        canvas.drawRect(
-                                rectBounds,
-                                fillPaint
-                        );
-                        //Draw left triangle
-                        point1.set(rectBounds.left - barRoundingRadius, rectBounds.top + barRoundingRadius);
-                        point2.set(rectBounds.left, rectBounds.top);
-                        point3.set(rectBounds.left, rectBounds.bottom);
+                        // 先画中间的矩形区间
+                        rectBounds.set(segmentLeft + barRoundingRadius + getPaddingLeft(), valueSignSpaceHeight() + getPaddingTop(),
+                                segmentRight - barRoundingRadius + getPaddingLeft(), barHeight + valueSignSpaceHeight() + getPaddingTop());
+                        canvas.drawRect(rectBounds, fillPaint);
 
+                        // 画左侧的三角形
+                        point1.set(rectBounds.left - barRoundingRadius, rectBounds.top + barRoundingRadius);// 最左边的点
+                        point2.set(rectBounds.left, rectBounds.top); // 上边的点
+                        point3.set(rectBounds.left, rectBounds.bottom); // 下边的点
                         drawTriangle(canvas, point1, point2, point3, fillPaint);
 
-                        //Draw right triangle
+                        // 画右侧的三角形
                         point1.set(rectBounds.right + barRoundingRadius, rectBounds.top + barRoundingRadius);
                         point2.set(rectBounds.right, rectBounds.top);
                         point3.set(rectBounds.right, rectBounds.bottom);
-
                         drawTriangle(canvas, point1, point2, point3, fillPaint);
+
                     } else {
                         if (isLeftSegment) {
                             rectBounds.set(segmentLeft + barRoundingRadius + getPaddingLeft(), valueSignSpaceHeight() + getPaddingTop(), segmentRight + getPaddingLeft(), barHeight + valueSignSpaceHeight() + getPaddingTop());
-                            canvas.drawRect(
-                                    rectBounds,
-                                    fillPaint
-                            );
+                            canvas.drawRect(rectBounds, fillPaint);
+
                             //Draw left triangle
                             point1.set(rectBounds.left - barRoundingRadius, rectBounds.top + barRoundingRadius);
                             point2.set(rectBounds.left, rectBounds.top);
@@ -355,10 +413,8 @@ public class SegmentedBarView extends View {
                             drawTriangle(canvas, point1, point2, point3, fillPaint);
                         } else {
                             rectBounds.set(segmentLeft + getPaddingLeft(), valueSignSpaceHeight() + getPaddingTop(), segmentRight - barRoundingRadius + getPaddingLeft(), barHeight + valueSignSpaceHeight() + getPaddingTop());
-                            canvas.drawRect(
-                                    rectBounds,
-                                    fillPaint
-                            );
+                            canvas.drawRect(rectBounds, fillPaint);
+
                             //Draw right triangle
                             point1.set(rectBounds.right + barRoundingRadius, rectBounds.top + barRoundingRadius);
                             point2.set(rectBounds.right, rectBounds.top);
@@ -367,20 +423,50 @@ public class SegmentedBarView extends View {
                             drawTriangle(canvas, point1, point2, point3, fillPaint);
                         }
                     }
+
+                    // ---------------------------------------------
+                    if (!valueRect.isEmpty()) {
+                        int sc_angle = canvas.saveLayer(valueRect, valuePaint, ALL_SAVE_FLAG);
+                        canvas.drawRect(rectBounds, valuePaint);
+                        drawTriangle(canvas, point1, point2, point3, valuePaint);
+                        if (isLeftAndRight) {
+                            // 补一个左侧的三角
+                            point1.set(rectBounds.left - barRoundingRadius, rectBounds.top + barRoundingRadius);// 最左边的点
+                            point2.set(rectBounds.left, rectBounds.top); // 上边的点
+                            point3.set(rectBounds.left, rectBounds.bottom); // 下边的点
+                            drawTriangle(canvas, point1, point2, point3, valuePaint);
+                        }
+                        canvas.restoreToCount(sc_angle);
+                    }
+                    // ---------------------------------------------
+
                     break;
                 case SegmentedBarViewSideStyle.NORMAL:
-                    canvas.drawRect(
-                            rectBounds,
-                            fillPaint
-                    );
+                    // 矩形直接绘制即可。
+                    canvas.drawRect(rectBounds, fillPaint);
+
+                    // ---------------------------------------------
+                    if (!valueRect.isEmpty()) {
+                        int sc_normal = canvas.saveLayer(valueRect, valuePaint, ALL_SAVE_FLAG);
+                        canvas.drawRect(rectBounds, valuePaint);
+                        canvas.restoreToCount(sc_normal);
+                    }
+                    // ---------------------------------------------
                 default:
                     break;
             }
         } else {
-            canvas.drawRect(
-                    rectBounds,
-                    fillPaint
-            );
+            // 位于中间的segment(不是最左或最右的segment)，直接画矩形即可
+            canvas.drawRect(rectBounds, fillPaint);
+
+            // ---------------------------------------------
+            if (!valueRect.isEmpty()) {
+                int sc = canvas.saveLayer(valueRect, valuePaint, ALL_SAVE_FLAG);
+                canvas.drawRect(rectBounds, valuePaint);
+                canvas.restoreToCount(sc);
+            }
+            // ---------------------------------------------
+
         }
 
         // Drawing segment text
@@ -413,6 +499,8 @@ public class SegmentedBarView extends View {
             descriptionTextPaint.setColor(descriptionTextColor);
             drawTextCentredInRectWithSides(canvas, descriptionTextPaint, segment.getDescriptionText(), segmentRect.left, segmentRect.bottom, segmentRect.right, segmentRect.bottom + descriptionBoxHeight);
         }
+
+
     }
 
     private void drawValueSign(Canvas canvas, int valueSignSpaceHeight, int valueSignCenter) {
@@ -539,7 +627,6 @@ public class SegmentedBarView extends View {
         invalidate();
         requestLayout();
     }
-
 
     public void setSegments(List<Segment> segments) {
         this.segments = segments;
@@ -669,17 +756,12 @@ public class SegmentedBarView extends View {
         requestLayout();
     }
 
-
     public Integer getValueSegment() {
         return valueSegment;
     }
 
     public void setValueSegment(Integer valueSegment) {
         this.valueSegment = valueSegment;
-    }
-
-    public static Builder builder(Context context) {
-        return new SegmentedBarView(context).new Builder();
     }
 
     public class Builder {
