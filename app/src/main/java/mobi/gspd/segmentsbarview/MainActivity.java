@@ -233,6 +233,12 @@ public class MainActivity extends AppCompatActivity {
         barView.setSegments(segments);
         barView.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         barView.setPadding(0, getResources().getDimensionPixelSize(R.dimen.vertical_padding), 0, 0);
+
+        // ----------------------------
+        barView.setProgressEnable(true);
+        barView.setProgressColor(Color.parseColor("#61e0aa"));
+        // ----------------------------
+
         mainLayout.addView(barView);
     }
 

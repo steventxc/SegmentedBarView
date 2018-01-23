@@ -10,6 +10,7 @@ import android.graphics.Path;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.support.annotation.ColorInt;
 import android.support.v4.content.ContextCompat;
 import android.text.Html;
 import android.text.Layout;
@@ -83,6 +84,8 @@ public class SegmentedBarView extends View {
 
     private RectF valueRect;
     private Paint valuePaint;
+    private int progressColor;
+    private boolean enableProgressMode;
 
     public SegmentedBarView(Context context) {
         super(context);
@@ -154,6 +157,9 @@ public class SegmentedBarView extends View {
                     SegmentedBarViewSideTextStyle.ONE_SIDED);
 
 
+            progressColor = a.getColor(R.styleable.SegmentedBarView_sbv_progress_color, Color.TRANSPARENT);
+            enableProgressMode = a.getBoolean(R.styleable.SegmentedBarView_sbv_progress_mode_enable, false);
+
         } finally {
             a.recycle();
         }
@@ -192,6 +198,7 @@ public class SegmentedBarView extends View {
         valueRect = new RectF();
         valuePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         valuePaint.setStyle(Paint.Style.FILL);
+        valuePaint.setColor(progressColor);
     }
 
     @Override
@@ -303,8 +310,8 @@ public class SegmentedBarView extends View {
                 segmentRight + getPaddingLeft(), barHeight + valueSignSpaceHeight() + getPaddingTop());
 
         ///////////
-        valueRect.set(rectBounds);
-        valuePaint.setColor(Color.parseColor("#FF055555"));
+        if (enableProgressMode)
+            valueRect.set(rectBounds);
         ///////////
 
         // Calculating value sign position
@@ -320,9 +327,10 @@ public class SegmentedBarView extends View {
             valueSignCenter = (int) (segmentLeft + getPaddingLeft() + valueSignCenterPercent * singleSegmentWidth);
 
             /////////
-            valueRect.right = valueSignCenter;
+            if (enableProgressMode)
+                valueRect.right = valueSignCenter;
             /////////
-        } else if (value != null && value < segment.getMinValue()) {
+        } else if (enableProgressMode && value != null && value < segment.getMinValue()) {
             valueRect.setEmpty();
         }
 
@@ -366,7 +374,7 @@ public class SegmentedBarView extends View {
                     }
 
                     // ---------------------------------------------
-                    if (!valueRect.isEmpty()) {
+                    if (enableProgressMode && !valueRect.isEmpty()) {
                         int sc_rounded = canvas.saveLayer(valueRect, valuePaint, ALL_SAVE_FLAG);
 
                         canvas.drawRoundRect(roundRectangleBounds, barRoundingRadius, barRoundingRadius, valuePaint);
@@ -425,7 +433,7 @@ public class SegmentedBarView extends View {
                     }
 
                     // ---------------------------------------------
-                    if (!valueRect.isEmpty()) {
+                    if (enableProgressMode && !valueRect.isEmpty()) {
                         int sc_angle = canvas.saveLayer(valueRect, valuePaint, ALL_SAVE_FLAG);
                         canvas.drawRect(rectBounds, valuePaint);
                         drawTriangle(canvas, point1, point2, point3, valuePaint);
@@ -446,7 +454,7 @@ public class SegmentedBarView extends View {
                     canvas.drawRect(rectBounds, fillPaint);
 
                     // ---------------------------------------------
-                    if (!valueRect.isEmpty()) {
+                    if (enableProgressMode && !valueRect.isEmpty()) {
                         int sc_normal = canvas.saveLayer(valueRect, valuePaint, ALL_SAVE_FLAG);
                         canvas.drawRect(rectBounds, valuePaint);
                         canvas.restoreToCount(sc_normal);
@@ -460,7 +468,7 @@ public class SegmentedBarView extends View {
             canvas.drawRect(rectBounds, fillPaint);
 
             // ---------------------------------------------
-            if (!valueRect.isEmpty()) {
+            if (enableProgressMode && !valueRect.isEmpty()) {
                 int sc = canvas.saveLayer(valueRect, valuePaint, ALL_SAVE_FLAG);
                 canvas.drawRect(rectBounds, valuePaint);
                 canvas.restoreToCount(sc);
@@ -764,6 +772,29 @@ public class SegmentedBarView extends View {
         this.valueSegment = valueSegment;
     }
 
+    /**
+     * 设置进度条的颜色。默认为透明。
+     *
+     * @param color color int
+     */
+    public void setProgressColor(@ColorInt int color) {
+        this.progressColor = color;
+        valuePaint.setColor(color);
+        invalidate();
+        requestLayout();
+    }
+
+    /**
+     * 设置进度条模式可见与否。
+     *
+     * @param enable true可见，false不可见。
+     */
+    public void setProgressEnable(boolean enable) {
+        this.enableProgressMode = enable;
+        invalidate();
+//        requestLayout();
+    }
+
     public class Builder {
 
         private Builder() {
@@ -876,6 +907,11 @@ public class SegmentedBarView extends View {
 
         public Builder descriptionBoxHeight(int descriptionBoxHeight) {
             SegmentedBarView.this.descriptionBoxHeight = descriptionBoxHeight;
+            return this;
+        }
+
+        public Builder progressColor(@ColorInt int color) {
+            SegmentedBarView.this.progressColor = color;
             return this;
         }
 
